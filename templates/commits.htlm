@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, Response
+from flask import Flask, render_template_string, request, Response
 import requests
 from datetime import datetime
 import matplotlib.pyplot as plt
@@ -6,14 +6,6 @@ from io import BytesIO
 
 app = Flask(__name__)
 
-# Route pour extraire les minutes d'une date
-@app.route('/extract-minutes/<date_string>')
-def extract_minutes(date_string):
-    date_object = datetime.strptime(date_string, '%Y-%m-%dT%H:%M:%SZ')
-    minutes = date_object.minute
-    return jsonify({'minutes': minutes})
-
-# Route pour afficher le graphique des commits
 @app.route('/commits/')
 def commits():
     # Étape 1 : Récupération des données via l'API GitHub
@@ -50,14 +42,57 @@ def commits():
     plt.ylabel("Nombre de commits")
     plt.grid(axis="y", linestyle="--", alpha=0.7)
     
-    # Sauvegarde du graphique dans un objet BytesIO pour l'afficher sur le site
+    # Sauvegarde du graphique dans un objet BytesIO
     img = BytesIO()
     plt.savefig(img, format='png')
     img.seek(0)
     plt.close()
-    
-    return Response(img.getvalue(), mimetype='image/png')
 
-# Lancer l'application Flask
+    # Encode l'image pour l'afficher dans la page HTML
+    img_data = img.getvalue()
+
+    # Étape 4 : Création d'une page HTML affichant le graphique
+    html_template = """
+    <!DOCTYPE html>
+    <html lang="fr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Graphique des Commits</title>
+        <style>
+            body {
+                font-family: Arial, sans-serif;
+                margin: 0;
+                padding: 20px;
+                background-color: #f4f4f9;
+                text-align: center;
+            }
+            h1 {
+                color: #333;
+            }
+            img {
+                border: 1px solid #ccc;
+                margin-top: 20px;
+                max-width: 90%;
+                height: auto;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>Graphique des Commits par Minute</h1>
+        <p>Ce graphique affiche la répartition des commits effectués minute par minute.</p>
+        <img src="data:image/png;base64,{{ img_data }}" alt="Graphique des commits">
+    </body>
+    </html>
+    """
+
+    # Encodage de l'image en base64
+    import base64
+    img_base64 = base64.b64encode(img_data).decode('utf-8')
+
+    # Rendu de la page HTML
+    return render_template_string(html_template, img_data=img_base64)
+
+
 if __name__ == '__main__':
     app.run(debug=True)
