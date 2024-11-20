@@ -1,0 +1,63 @@
+from flask import Flask, jsonify, Response
+import requests
+from datetime import datetime
+import matplotlib.pyplot as plt
+from io import BytesIO
+
+app = Flask(__name__)
+
+# Route pour extraire les minutes d'une date
+@app.route('/extract-minutes/<date_string>')
+def extract_minutes(date_string):
+    date_object = datetime.strptime(date_string, '%Y-%m-%dT%H:%M:%SZ')
+    minutes = date_object.minute
+    return jsonify({'minutes': minutes})
+
+# Route pour afficher le graphique des commits
+@app.route('/commits/')
+def commits():
+    # Étape 1 : Récupération des données via l'API GitHub
+    api_url = "https://api.github.com/repos/OpenRSI/5MCSI_Metriques/commits"
+    response = requests.get(api_url)
+    
+    if response.status_code != 200:
+        return f"Erreur lors de l'appel à l'API GitHub : {response.status_code}"
+
+    commits_data = response.json()
+    
+    # Étape 2 : Extraction des minutes des commits
+    minutes_count = {}
+    
+    for commit in commits_data:
+        commit_date = commit['commit']['author']['date']  # Récupération de la date
+        date_object = datetime.strptime(commit_date, '%Y-%m-%dT%H:%M:%SZ')  # Conversion en objet datetime
+        minute = date_object.minute  # Extraction de la minute
+        
+        # Comptabilisation des commits par minute
+        if minute in minutes_count:
+            minutes_count[minute] += 1
+        else:
+            minutes_count[minute] = 1
+    
+    # Étape 3 : Génération du graphique
+    minutes = list(minutes_count.keys())
+    commits_per_minute = list(minutes_count.values())
+    
+    plt.figure(figsize=(10, 5))
+    plt.bar(minutes, commits_per_minute, color="blue", alpha=0.7)
+    plt.title("Nombre de commits par minute")
+    plt.xlabel("Minute")
+    plt.ylabel("Nombre de commits")
+    plt.grid(axis="y", linestyle="--", alpha=0.7)
+    
+    # Sauvegarde du graphique dans un objet BytesIO pour l'afficher sur le site
+    img = BytesIO()
+    plt.savefig(img, format='png')
+    img.seek(0)
+    plt.close()
+    
+    return Response(img.getvalue(), mimetype='image/png')
+
+# Lancer l'application Flask
+if __name__ == '__main__':
+    app.run(debug=True)
